@@ -1,2 +1,4 @@
 venv_fundamentals/
 __pycache__/
+.vscode/
+ar_functions.py

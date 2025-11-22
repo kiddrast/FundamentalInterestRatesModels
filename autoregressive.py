@@ -6,7 +6,6 @@ from tqdm import trange
 
 class AutoRegressive:
 
-
     def __init__(self, steps: int, paths: int, a=np.array, start=0, dist='normal', error_var=1, df=None, wald_mean=1):
 
         self.steps     = steps
@@ -71,6 +70,8 @@ class AutoRegressive:
         '''
 
         If the method si ols it gives an array of dimension len(self.a) x paths of coefficients
+        By default data is the one generated through specific function, however if the function fit_ar() has been provided by other data, it is possible to pass it.
+        (same for p)
 
         TODO: add Maximum likelihood method
 
@@ -117,25 +118,32 @@ class AutoRegressive:
 
         '''
 
+        # Variables declaration
         if data == None:
             data = self.data
         if p == None:
             p = self.p
+        coefficients = self.coefficients
 
         # Preparing y_hat
-        steps = data.size[0]
+        steps = data.shape[0]
         y_hat = np.zeros_like(data)
         for i in range(0,p):
-            y_hat[i,:] = data[i,:]  
+            y_hat[i,:] = data[i,:]  # First p rows filled with initial values
 
-        # Generate the processes of y_hat with the found coefficients 
-        i=0
+        # Generate the processes of y_hat with the coefficients given by fit_ar()
+        s=0
         for col in y_hat.T:
-            a = self.coefficients[:,1]
+            if coefficients.ndim == 1:
+                a = coefficients
+            else:
+                a = coefficients[:, s]
+
             for i in trange(p, steps):
-                col[i] = a[0] + a[1:].T @ y_hat[i-p:i,:]
-            i+=1
-        self.epsilon = data - y_hat[1,:]
+                col[i] = a[0] + a[1:].reshape(1,-1) @ y_hat[i-p:i,s]
+            s+=1
+
+        self.epsilon = data - y_hat
         return self.epsilon
 
 
@@ -147,9 +155,9 @@ class AutoRegressive:
 
 ### For testing and debugging
 if __name__ == "__main__":
-    model = AutoRegressive(steps=1_000, paths=1, a=np.array([0.2,0.5,-0.4]), start=0)
+    model = AutoRegressive(steps=1_000_000, paths=5, a=np.array([0.2, 0.5, -0.4, 0.2, 0.1, -0.3]), start=0)
     data = model.generate()
     model.plot_paths()
     coefficients = model.fit_ar()
     print(coefficients) # They should match (on average) the given a
-    model.get_errors()
+    errors = model.get_errors()
