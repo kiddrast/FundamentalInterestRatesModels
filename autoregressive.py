@@ -4,7 +4,7 @@ from pandas import DataFrame as df
 import matplotlib.pyplot as plt # TODO: maybe plotly looks better
 from tqdm import trange
 from scipy.stats import chi2
-
+from IPython.display import display
 
 class AutoRegressive:
 
@@ -17,7 +17,7 @@ class AutoRegressive:
         self.start     = start      # TODO: add the option to give different starting points for each level
         self.start_row = np.full(shape=(1,paths), fill_value=self.start)
         self.dist      = dist
-        self.error_var = 1
+        self.error_var = error_var
         self.df        = df         # Degree of freedom of t
         self.wald_mean = wald_mean  # Mean of inverse normal
 
@@ -59,11 +59,13 @@ class AutoRegressive:
 
 
 
-    def plot_paths(self, size=(11,3), title=None):
+    def plot_paths(self, data=None, size=(11,3),  title=None):
+
         if title is None:
             title = f'AR({self.p}) processes'
+
         plt.figure(figsize=size)
-        plt.plot(self.data)
+        plt.plot(data)
         plt.title(title)
         plt.grid(True)
         plt.show()
@@ -124,7 +126,6 @@ class AutoRegressive:
 
         '''
 
-        # Variables declaration
         if data is None:
             data = self.data
         if p is None:
@@ -132,7 +133,7 @@ class AutoRegressive:
         coefficients = self.coefficients
 
         # Preparing y_hat
-        steps, paths = data.shape
+        steps, _ = data.shape
         y_hat = np.zeros_like(data)
         for i in range(0,p):
             y_hat[i,:] = data[i,:]  # First p rows filled with initial values
@@ -186,7 +187,7 @@ class AutoRegressive:
 
 
 
-    def auto_correlation_function(self, p, plot=True, data=None) -> df:
+    def auto_correlation_function(self, p, data=None) -> df:
 
         '''
         
@@ -214,35 +215,47 @@ class AutoRegressive:
             
             acf_summary[:,i] = acf_col.T
 
-        # Plot section
-        if plot:
-            lags = np.arange(p + 1)
-            conf = 1.0 / np.sqrt(steps)
-
-            plt.figure(figsize=(8, 5))
-
-            # Plot ACF for each path
-            for i in range(paths):
-                plt.plot(lags, acf_summary[:, i], alpha=0.7)
-
-            # Confidence intervals around 0
-            plt.axhline(conf, color='gray', linestyle='--', linewidth=1)
-            plt.axhline(-conf, color='gray', linestyle='--', linewidth=1)
-
-            # Axes and labels
-            plt.axhline(0, color='black', linewidth=1)
-            plt.title("Autocorrelation Function (ACF)")
-            plt.xlabel("Lag")
-            plt.ylabel("ACF Value")
-            plt.grid(True)
-            plt.tight_layout()
-            plt.show()
-
         return df(acf_summary)
 
 
 
-    def study_errors(self, p :int, data = None) -> tuple[df, df, df, df]:
+    def plot_acf(self, acf_summary: df) -> None:
+
+        '''
+        
+        Plots the acf function
+        
+        '''
+
+        steps, paths = self.data.shape
+        acf_summary = acf_summary.to_numpy()
+        p = acf_summary.shape[0] - 1
+
+        lags = np.arange(p + 1)
+        conf = 1.0 / np.sqrt(steps)
+
+        plt.figure(figsize=(8, 5))
+
+        # Plot ACF for each path
+        for i in range(paths):
+            plt.plot(lags, acf_summary[:, i], alpha=0.7)
+
+        # Confidence intervals around 0
+        plt.axhline(conf, color='red', linestyle='--', linewidth=1)
+        plt.axhline(-conf, color='red', linestyle='--', linewidth=1)
+
+        # Axes and labels
+        plt.axhline(0, color='black', linewidth=1)
+        plt.title("Autocorrelation Function (ACF)")
+        plt.xlabel("Lag")
+        plt.ylabel("ACF Value")
+        plt.grid(True)
+        plt.tight_layout()
+        plt.show()
+
+
+
+    def study_errors(self, p: int, display_results = True, data = None) -> tuple[df, df, df, df]:
 
         '''
         
@@ -278,18 +291,39 @@ class AutoRegressive:
         self.jb_summary = self.jb_test(data=data)
         self.acf = self.auto_correlation_function(p=p, data=data)
 
+        if display_results:
+            print("\n")
+            print("="*100)
+            print("STUDYING ERRORS")
+            print("="*100)
+            print("\n")
+
+            print("\n")
+            print("="*50)
+            print("DESCRIPTIVE STATISTICS")
+            print("="*50)
+            display(df(self.epsilon).describe())
+
+            print("\n")
+            print("="*50)
+            print("MOMENTS SUMMARY")
+            print("="*50)
+            display(self.moments)
+
+            print("\n")
+            print("="*50)
+            print("JARQUE–BERA NORMALITY TEST RESULTS")
+            print("="*50)
+            display(self.jb_summary)
+
+            print("\n")
+            print("="*50)
+            print("AUTOCORRELATION FUNCTION (ACF)")
+            print("="*50)
+            display(self.acf)
+
         return self.moments, self.jb_summary, self.acf, df(self.epsilon).describe()
         
-
-
-        
-        
-
-
-
-    
-
-
 
 
 
@@ -302,7 +336,7 @@ if __name__ == "__main__":
     model.plot_paths()
     coefficients = model.fit_ar()
     print(coefficients)           # They should match (on average) the given a
-    errors = model.get_errors()   # should be N(0,1) in this example
+    eps, _ = model.get_errors()   # should be N(0,1) in this example
     moments, jb, acf, stat = model.study_errors(10)
     print(moments)
     print(jb)
