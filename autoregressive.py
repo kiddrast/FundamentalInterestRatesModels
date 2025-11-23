@@ -3,7 +3,7 @@ import pandas as pd
 from pandas import DataFrame as df
 import matplotlib.pyplot as plt # TODO: maybe plotly looks better
 from tqdm import trange
-from scipy.stats import chi2
+import scipy.stats as stats
 from IPython.display import display
 
 class AutoRegressive:
@@ -178,7 +178,7 @@ class AutoRegressive:
             skewness = np.mean(z**3)
             kurtosis = np.mean(z**4)
             jb_stat  = (steps/6) * (skewness**2 + ((kurtosis - 3)**2)/4)
-            p_value = 1.0 - chi2.cdf(jb_stat, df=2)
+            p_value = 1.0 - stats.chi2.cdf(jb_stat, df=2)
 
             jb_summary[0,i] = jb_stat
             jb_summary[1,i] = p_value
@@ -250,6 +250,30 @@ class AutoRegressive:
         plt.xlabel("Lag")
         plt.ylabel("ACF Value")
         plt.grid(True)
+        plt.tight_layout()
+        plt.show()
+    
+
+
+    def plot_qq_2d(self, data, ncols=3):
+
+        """
+
+        Plots Q-Q plots for each Path
+
+        """
+
+        _, paths = data.shape
+        nrows = int(np.ceil(paths / ncols))
+
+        fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(5*ncols, 5*nrows))
+        axes = axes.flatten()
+
+        for i in range(paths):
+            stats.probplot(data[:, i], dist="norm", plot=axes[i])
+            axes[i].set_title(f"Q-Q Plot Path {i}")
+            axes[i].grid(True)
+
         plt.tight_layout()
         plt.show()
 
@@ -333,12 +357,10 @@ class AutoRegressive:
 if __name__ == "__main__":
     model = AutoRegressive(steps=1_000, paths=10, a=np.array([0.2, 1]), start=0)
     data = model.generate()
-    model.plot_paths()
+    model.plot_paths(data)
     coefficients = model.fit_ar()
     print(coefficients)           # They should match (on average) the given a
     eps, _ = model.get_errors()   # should be N(0,1) in this example
     moments, jb, acf, stat = model.study_errors(10)
-    print(moments)
-    print(jb)
-    print(acf)
-    print(stat)
+
+    model.plot_qq_2d(model.epsilon, ncols=4)
