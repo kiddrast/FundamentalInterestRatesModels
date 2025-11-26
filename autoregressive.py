@@ -51,7 +51,8 @@ class AutoRegressive():
 
         # Fill data
         for i in trange(self.p, self.steps):
-            data[i,:] = self.a[0] + self.a[1:].T @ data[i-self.p:i,:] + epsilon[i,:]
+            data[i,:] = self.a[0] + self.a[1:].T @ data[i-self.p:i,:][::-1, :] + epsilon[i,:]
+            
 
         print(f'{self.paths} different AR({self.p}) processes of {self.steps - self.p + 2} steps have been generated with increments following {self.dist} distribution') 
 
