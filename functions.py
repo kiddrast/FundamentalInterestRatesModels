@@ -46,11 +46,11 @@ def generate_ar(steps: int, paths: int, a=np.ndarray, start=0, dist='normal', er
 
     # Get coefficients
     a_0 = a[0]
-    a = a[1:][::-1].reshape(p, 1)    #(px1)
+    a = a[1:][::-1].reshape(1, p)    #(1xp)
     
     # Fill data
     for i in trange(p, steps):
-        data[i,:] = (a_0 + a.T @ data[i-p:i,:] + epsilon[i,:]).ravel() # (paths,) , before .ravel() the shape is (1xpaths)
+        data[i,:] = (a_0 + a @ data[i-p:i,:] + epsilon[i,:]).ravel() # (paths,) , before .ravel() the shape is (1xpaths)
         
     print(f'{paths} different AR({p}) processes of {steps - p + 2} steps have been generated with increments following {dist} distribution') 
 
