@@ -6,7 +6,7 @@ from tqdm import trange
 import scipy.stats as stats
 from IPython.display import display
 
-from likelihoodFunctions import neg_loglik_normal_ar
+from likelihoodFunctions import neg_loglik_normal_ar, neg_loglik_t_ar
 from scipy.optimize import minimize 
 
 
@@ -127,40 +127,54 @@ def fit_ar_ols(data: np.ndarray, p: int) -> np.ndarray:
 
 
 
-def fit_ar_ML(y_t: np.array, p: int, dist='normal') -> np.array:
+
+
+
+#################################################################################################################################### Work in progress
+
+
+
+
+def fit_ar_ML_normal(y_t: np.array, p: int, dist='normal') -> np.array:
 
     init_a0 = np.mean(y_t)
-    init_coeff = np.zeros(p)
+    init_coeff = np.array([0.8])
     init_sigma_2 = np.var(y_t)
     x0 = np.concatenate([[init_a0], init_coeff, [init_sigma_2]])
 
-    bounds = [(None,None)] * (p+1) + [(0,None)] # No bounds for coeff + Bounds for variance
+    bounds = [(None,None)] * (p+1) + [(0.1,None)] # No bounds for coeff + Bounds ( >0) for variance
 
-    res = minimize(fun=neg_loglik_normal_ar, x0=x0, args=(y_t,1), method='L-BFGS-B', bounds=bounds)
+    res = minimize(fun=neg_loglik_normal_ar, x0=x0, args=(y_t,), method='L-BFGS-B', bounds=bounds)
     return res
 
-    
 
+def fit_ar_ML_t(y_t: np.array, p: int, dist='t') -> np.array:
 
+    init_a0 = np.mean(y_t)
+    init_coeff = np.array([0.8])
+    init_sigma_2 = np.var(y_t)
+    init_nu = 6.5
+    x0 = np.concatenate([[init_a0], init_coeff, [init_sigma_2], [init_nu]])
+
+    bounds = [(None,None)] * (p+1) + [(0.1,None)] + [(0.1,None)] # No bounds for coeff + Bounds ( >0) for variance and nu
+
+    res = minimize(fun=neg_loglik_t_ar, x0=x0, args=(y_t,), method='Nelder-Mead', bounds=bounds)
+
+    return res
 
 
 
 if __name__ == '__main__':
-    data = generate_ar(steps=100000, paths=1, a=np.array([0, 0.3]), start=0, dist='normal')
+    data = generate_ar(steps=10_000, paths=1, a=np.array([0, 0.9]), start=0, dist='t', degree_f=7)
 
-    print(fit_ar_ML(y_t=data, p=1))
-
-
+    print(fit_ar_ML_normal(y_t=data, p=1))
 
 
 
 
 
 
-
-
-
-
+###################################################################################################################################
 
 
 
@@ -189,18 +203,17 @@ def get_residuals(data: np.ndarray, coefficients: np.ndarray, p: int, std_residu
     # Get coefficients
     if coefficients.ndim == 1:
         a_0 = coefficients[0]
-        a = coefficients[1:].reshape(p, 1)    
+        a = coefficients[1:].reshape(p, 1)[::-1]    
     else:
-        a_0 = coefficients[0, :]           # (paths,)
-        a = coefficients[1:, :]            # (p,paths)
-
+        a_0 = coefficients[0, :]                   # (paths,)
+        a = coefficients[1:, :][::-1,:]            # (p,paths)
+    
     # Generate data
-    for i in trange(p, steps):
-        window = y_hat[i-1:i-p-1:-1, :]    # (p,paths)    
-        y_hat[i, :] = a_0 + np.sum(a * window, axis=0)
+    for i in trange(p, steps): 
+        y_hat[i, :] = a_0 + np.sum(a * y_hat[i-p:i,:], axis=0)
 
     # Compute and return errors
-    eta     = data - y_hat         
+    eta = data - y_hat         
 
     if std_residuals:
         epsilon = eta / np.std(eta, axis=0, keepdims=True)  

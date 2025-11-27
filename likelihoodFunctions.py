@@ -48,8 +48,8 @@ def neg_loglik_normal_ar(y_t: np.ndarray, a: np.ndarray) -> float:
 
     '''
     
-    Negative LogLikilihood for fitting an AR(p) process with normal innovations. 
-    a is an array of parameters such that: [a0, a1, ... ap, sigma^2].
+    Negative Log-Likelihood for fitting an AR(p) process with normal innovations. 
+    a must be an array of parameters such that: [a0, a1, ..., ap, sigma^2].
     
     '''
 
