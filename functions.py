@@ -17,7 +17,8 @@ def generate_errors(data: np.ndarray, dist: str, error_var: float, degree_f: flo
     elif dist == 'wald':
         if wald_mean <=0:
             raise('The mean of a wald distribution must be greater than 0!')
-        epsilon = random_generator.wald(error_var, error_var, size=data.shape)
+        else:
+            epsilon = random_generator.wald(error_var, error_var, size=data.shape)
     
     return epsilon
 
@@ -45,8 +46,7 @@ def generate_ar(steps: int, paths: int, a=np.ndarray, start=0, dist='normal', er
     
     # Fill data
     for i in trange(p, steps):
-        window = data[i-p:i, :][::-1, :] 
-        data[i,:] = a[0] + a[1:].T @ window + epsilon[i,:]
+        data[i,:] = a[0] + a[1:].T @ data[i-1:i-p-1:-1, :] + epsilon[i,:]
         
     print(f'{paths} different AR({p}) processes of {steps - p + 2} steps have been generated with increments following {dist} distribution') 
 
@@ -102,7 +102,7 @@ def get_residuals(data: np.ndarray, coefficients: np.ndarray, p: int, std_residu
 
     '''
     
-    After fitting an AR(p) this function returns an arrays of dimension steps x paths. By default returns and std residuals.
+    After fitting an AR(p) this function returns an arrays of dimension steps x paths. By default returns std residuals.
 
     '''
 
@@ -122,7 +122,7 @@ def get_residuals(data: np.ndarray, coefficients: np.ndarray, p: int, std_residu
 
     # Generate data
     for i in trange(p, steps):
-        window = y_hat[i-p:i, :][::-1,:]     # (p,paths)    
+        window = y_hat[i-1:i-p-1:-1, :]    # (p,paths)    
         y_hat[i, :] = a_0 + np.sum(a * window, axis=0)
 
     # Compute and return errors
@@ -133,3 +133,10 @@ def get_residuals(data: np.ndarray, coefficients: np.ndarray, p: int, std_residu
         return epsilon  # std residuals            
     else:
         return eta     # residuals
+    
+
+
+
+
+if __name__ == '__main__':
+    data = generate_ar()
