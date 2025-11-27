@@ -6,6 +6,8 @@ from tqdm import trange
 import scipy.stats as stats
 from IPython.display import display
 
+from likelihoodFunctions import neg_loglik_normal_ar
+from scipy.optimize import minimize 
 
 
 def generate_errors(data: np.ndarray, dist: str, error_var: float, degree_f: float, wald_mean: float, seed=42) -> np.ndarray:
@@ -96,16 +98,47 @@ def fit_ar_ols(data: np.ndarray, p: int) -> np.ndarray:
     return coefficients
 
 
-'''
-def fit_ar_ML(data: np.array, p: int, dist='') -> np.array:
 
-    if dist == 'normal':
-        likelihood = 
-    if dist == 't':
-        likelihood = 
-    if dist == 'wald':
-        likelihood = 
-'''
+def fit_ar_ML(y_t: np.array, p: int, dist='normal') -> np.array:
+
+    init_a0 = np.mean(y_t)
+    init_coeff = np.zeros(p)
+    init_sigma_2 = np.var(y_t)
+    x0 = np.concatenate([[init_a0], init_coeff, [init_sigma_2]])
+
+    bounds = [(None,None)] * (p+1) + [(0,None)] # No bounds for coeff + Bounds for variance
+
+    res = minimize(fun=neg_loglik_normal_ar, x0=x0, args=(y_t,1), method='L-BFGS-B', bounds=bounds)
+    return res
+
+    
+
+
+if __name__ == '__main__':
+    data = generate_ar(steps=100000, paths=1, a=np.array([0, 0.3]), start=0, dist='normal')
+
+    print(fit_ar_ML(y_t=data, p=1))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 def get_residuals(data: np.ndarray, coefficients: np.ndarray, p: int, std_residuals = True) -> np.ndarray:
@@ -144,11 +177,3 @@ def get_residuals(data: np.ndarray, coefficients: np.ndarray, p: int, std_residu
     else:
         return eta     # residuals
     
-
-
-
-
-if __name__ == '__main__':
-    data = generate_ar(steps=100000, paths=3, a=np.array([0.2, 0.9, 0.1]), start=0, dist='normal')
-
-    print(fit_ar_ols(data, p=2))

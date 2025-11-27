@@ -143,7 +143,7 @@ def neg_loglik_t_ar(y_t: np.ndarray, a: np.ndarray) -> float:
 
 # TESTING AND DEBUGGING
 if __name__ == '__main__':
-    from functions import generate_ar as gar
+    from likelihoodFunctions import generate_ar as gar
     y_t = gar(steps=100, paths=1, a=np.array([0.2, 0.9, 0.1]), start=55, dist='normal')
 
     mu_t = conditional_mean(y_t=y_t, a=np.array([0.2, 0.9, 0.1]))
