@@ -3,11 +3,10 @@ import pandas as pd
 from pandas import DataFrame as df
 import matplotlib.pyplot as plt # TODO: maybe plotly looks better
 from tqdm import trange
-import scipy.stats as stats
+from scipy.stats import chi2
 from IPython.display import display
-import utilities as ut
 
-class AutoRegressive():
+class AutoRegressive:
 
     def __init__(self, steps: int, paths: int, a=np.array, start=0, dist='normal', error_var=1, df=None, wald_mean=1):
 
@@ -51,57 +50,26 @@ class AutoRegressive():
 
         # Fill data
         for i in trange(self.p, self.steps):
-            data[i,:] = self.a[0] + self.a[1:].T @ data[i-self.p:i,:][::-1, :] + epsilon[i,:]
-            
+            data[i,:] = self.a[0] + self.a[1:].T @ data[i-self.p:i,:] + epsilon[i,:]
 
         print(f'{self.paths} different AR({self.p}) processes of {self.steps - self.p + 2} steps have been generated with increments following {self.dist} distribution') 
 
         self.data: np.array = data
         return self.data
-    
-
-
-    def prices_to_log_returns(self, data = None) -> np.array:
-
-        '''
-        
-        Trasforms the prices into log returns. It must be provided of strictly positive data.
-        
-        '''
-
-        if data is None:
-            data = self.data
-
-        return np.diff(np.log(data))
-    
-
-
-    def returns_to_log_returns(self, data = None) -> np.array:
-
-        '''
-        
-        Trasforms the simple returns into log returns. It must be provided of strictly positive data (Prices)
-        
-        '''
-
-        if data is None:
-            data = self.data
-
-        return np.log(data)
 
 
 
-    def plot_paths(self, data=None, size=(11,3)) -> None:
+    def plot_paths(self, data=None, size=(11,3),  title=None):
 
-        if data is None:
-            data = self.data
+        if title is None:
+            title = f'AR({self.p}) processes'
 
         plt.figure(figsize=size)
         plt.plot(data)
-        plt.title(f'AR({self.p}) processes')
+        plt.title(title)
         plt.grid(True)
         plt.show()
-    
+
 
 
     def fit_ar(self, p=None, data=None, method='ols') -> np.array:  
@@ -147,7 +115,7 @@ class AutoRegressive():
 
 
 
-    def get_residuals(self, data=None, p=None) -> tuple[np.array, np.array]:
+    def get_errors(self, data=None, p=None) -> tuple[np.array, np.array]:
 
         '''
         
@@ -182,13 +150,112 @@ class AutoRegressive():
             window = y_hat[i-p:i, :]  # (p,paths)    
             y_hat[i, :] = a_0 + np.sum(a * window, axis=0)
 
-        self.eta     = data - y_hat         # residuals
-        self.epsilon = self.eta / np.std(self.eta, axis=0, keepdims=True) # std residuals               
+        self.eta     = data - y_hat         # errors
+        self.epsilon = self.eta / np.std(self.eta, axis=0, keepdims=True) # std errors                 
         return self.epsilon, self.eta
 
 
 
-    def study_residuals(self, display_results: bool = True) -> None:
+    def jb_test(self, data=None) -> df:
+
+        '''
+        
+        Gives a df containing stat test e p-value for each path
+
+        '''
+
+        if data is None:
+            data = self.data
+
+        steps, paths = data.shape
+        jb_summary = np.zeros((2, paths))
+
+        for i in range(0,paths):
+            col = data[:,i]
+            mu = np.mean(col)
+            std = np.std(col)             
+            z = (col - mu) / std
+            skewness = np.mean(z**3)
+            kurtosis = np.mean(z**4)
+            jb_stat  = (steps/6) * (skewness**2 + ((kurtosis - 3)**2)/4)
+            p_value = 1.0 - chi2.cdf(jb_stat, df=2)
+
+            jb_summary[0,i] = jb_stat
+            jb_summary[1,i] = p_value
+
+        return df(jb_summary).rename(index={0:'jb stat', 1:'p value'})
+
+
+
+    def auto_correlation_function(self, p, data=None) -> df:
+
+        '''
+        
+        Computes the acf up to lag p for every path. 
+        
+        '''
+
+        if data is None:
+            data = self.data
+
+        steps, paths = data.shape
+        acf_summary = np.zeros((p+1, paths))
+
+        for i in range(0,paths):
+
+            col = data[:,i]
+            mu = np.mean(col)
+            var = np.sum((col - mu)**2) 
+            acf_col = np.zeros(p + 1)
+            acf_col[0] = 1
+
+            for k in range(1, p + 1):
+                cov = np.sum((col[k:] - mu) * (col[:-k] - mu))
+                acf_col[k] = cov / var
+            
+            acf_summary[:,i] = acf_col.T
+
+        return df(acf_summary)
+
+
+
+    def plot_acf(self, acf_summary: df) -> None:
+
+        '''
+        
+        Plots the acf function
+        
+        '''
+
+        steps, paths = self.data.shape
+        acf_summary = acf_summary.to_numpy()
+        p = acf_summary.shape[0] - 1
+
+        lags = np.arange(p + 1)
+        conf = 1.0 / np.sqrt(steps)
+
+        plt.figure(figsize=(8, 5))
+
+        # Plot ACF for each path
+        for i in range(paths):
+            plt.plot(lags, acf_summary[:, i], alpha=0.7)
+
+        # Confidence intervals around 0
+        plt.axhline(conf, color='red', linestyle='--', linewidth=1)
+        plt.axhline(-conf, color='red', linestyle='--', linewidth=1)
+
+        # Axes and labels
+        plt.axhline(0, color='black', linewidth=1)
+        plt.title("Autocorrelation Function (ACF)")
+        plt.xlabel("Lag")
+        plt.ylabel("ACF Value")
+        plt.grid(True)
+        plt.tight_layout()
+        plt.show()
+
+
+
+    def study_errors(self, p: int, display_results = True, data = None) -> tuple[df, df, df, df]:
 
         '''
         
@@ -198,17 +265,36 @@ class AutoRegressive():
         - Autocorrelation Function
         - Descriptive statistics
 
+        Everything iterated for every path
+
         '''
 
-        self.residuals_stats = df(self.epsilon).describe()
-        self.moments = ut.compute_moments(self.epsilon)
-        self.jb_summary = ut.jb_test(self.epsilon)
-        self.acf = ut.auto_correlation_function(self.epsilon, 20)
+        if data is None:
+            data, _ = self.get_errors()
+        
+        steps, paths = data.shape
+        self.moments = np.zeros((4, paths))
+
+
+        for i in range(0,paths):
+            col = data[:,i]
+            mu = np.mean(col)
+            var = np.var(col)
+            std = np.std(col)             
+            z = (col - mu) / std
+            skewness = np.mean(z**3)
+            kurtosis = np.mean(z**4)
+
+            self.moments[:,i] = np.array([mu, var, skewness, kurtosis]).T
+
+        self.moments = df(self.moments).rename(index={0: 'mean', 1: 'variance', 2: 'skewness', 3: 'kurtosis'})
+        self.jb_summary = self.jb_test(data=data)
+        self.acf = self.auto_correlation_function(p=p, data=data)
 
         if display_results:
             print("\n")
             print("="*100)
-            print("RESIDUALS DIAGNISTIC")
+            print("STUDYING ERRORS")
             print("="*100)
             print("\n")
 
@@ -235,15 +321,8 @@ class AutoRegressive():
             print("AUTOCORRELATION FUNCTION (ACF)")
             print("="*50)
             display(self.acf)
-            ut.plot_acf(self.acf, 20)
 
-            print("\n")
-            print("="*50)
-            print("QQ Plots")
-            print("="*50)
-            ut.qq_plot(self.epsilon)         
-
-        return 
+        return self.moments, self.jb_summary, self.acf, df(self.epsilon).describe()
         
 
 
@@ -252,14 +331,14 @@ class AutoRegressive():
 
 ### For testing and debugging
 if __name__ == "__main__":
-
-    model = AutoRegressive(steps=1_000, paths=6, a=np.array([0.2, 0.4]), start=100)
+    model = AutoRegressive(steps=1_000, paths=10, a=np.array([0.2, 1]), start=0)
     data = model.generate()
     model.plot_paths()
-
     coefficients = model.fit_ar()
-    print(coefficients)              # They should match (on average) the given a
- 
-    eps, eta = model.get_residuals()
-    model.study_residuals()
-
+    print(coefficients)           # They should match (on average) the given a
+    eps, _ = model.get_errors()   # should be N(0,1) in this example
+    moments, jb, acf, stat = model.study_errors(10)
+    print(moments)
+    print(jb)
+    print(acf)
+    print(stat)
