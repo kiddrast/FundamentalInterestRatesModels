@@ -37,16 +37,20 @@ def generate_ar(steps: int, paths: int, a=np.ndarray, start=0, dist='normal', er
 
     # Initialize and add first rows
     data = np.empty((steps,paths), dtype=float)
-    start_row = np.full(shape=(1,paths), fill_value=start)
+    start_row = np.full(shape=data[0,:].shape, fill_value=start)
     for i in range(0,p):
-        data[1,:] = start_row
+        data[i,:] = start_row
 
     # Generate errors
     epsilon = generate_errors(data, dist, error_var, degree_f, wald_mean)
+
+    # Get coefficients
+    a_0 = a[0]
+    a = a[1:][::-1].reshape(p, 1)    #(px1)
     
     # Fill data
     for i in trange(p, steps):
-        data[i,:] = a[0] + a[1:].T @ data[i-1:i-p-1:-1, :] + epsilon[i,:]
+        data[i,:] = (a_0 + a.T @ data[i-p:i,:] + epsilon[i,:]).ravel() # (paths,) , before .ravel() the shape is (1xpaths)
         
     print(f'{paths} different AR({p}) processes of {steps - p + 2} steps have been generated with increments following {dist} distribution') 
 
@@ -63,26 +67,32 @@ def fit_ar_ols(data: np.ndarray, p: int) -> np.ndarray:
     '''
 
     # Auxiliary function to fit a single path
-    def fit_col(col: np.array, p: int) -> np.array:
+    def fit_col(col, p):
 
-        Y = col[p:,:]
-        X = np.ones_like(Y)       # Initialize X with same shape of Y and full of 1 (in order to get the constant)
+        # Preparing X and Y
+        Y = col[p:,:]        # (steps-p x 1)
+        X_0 = np.ones_like(Y)  # (steps-p x 1)   
+        cols = [X_0]
         
         for i in range(1,p+1):
-            v = col[p-i:-i,:]
-            X = np.hstack((X,v))   # Populating X with y_t-1, y_t-2, ... , y_t-p
+            X_i = col[p-i:-i,:]
+            cols.append(X_i)
+            
+        X = np.hstack(cols)  # Populating X with y_t-1, y_t-2, ... , y_t-p
 
         a_hat = np.linalg.inv(X.T @ X) @ (Y.T @ X).T
-        return np.vstack((a_hat[0], a_hat[:0:-1]))
+
+        return a_hat 
 
     # Iterate fit col to every path
-    coefficients = np.zeros((p+1,np.shape(data)[1]))
-    i=0
-    for col in data.T:
-        a_hat = fit_col(col.reshape(-1,1), p=p).reshape(-1)
-        coefficients[:,i] = a_hat
-        i += 1
+    steps, paths = data.shape
+    coefficients = np.zeros((p+1,paths)) 
 
+    for i in range(0,paths):
+        col = data[:,i].reshape(steps,1) # (steps x 1)
+        a_hat = fit_col(col, p=p).ravel()
+        coefficients[:,i] = a_hat
+    
     return coefficients
 
 
@@ -139,4 +149,6 @@ def get_residuals(data: np.ndarray, coefficients: np.ndarray, p: int, std_residu
 
 
 if __name__ == '__main__':
-    data = generate_ar()
+    data = generate_ar(steps=100000, paths=3, a=np.array([0.2, 0.9, 0.1]), start=0, dist='normal')
+
+    print(fit_ar_ols(data, p=2))
