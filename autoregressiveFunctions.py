@@ -16,7 +16,7 @@ def generate_errors(data: np.ndarray, dist: str, error_var: float, degree_f: flo
     if dist == 'normal':
         epsilon = random_generator.normal(loc=0, scale=np.sqrt(error_var), size=data.shape)
     elif dist == 't':
-        epsilon = random_generator.standard_t(degree_f, size=data.shape)
+        epsilon = (random_generator.standard_t(degree_f, size=data.shape)) * np.sqrt(error_var)
     return epsilon
 
 
@@ -39,7 +39,7 @@ def generate_ar(steps: int, paths: int, a=np.ndarray, start=0, dist='normal', er
         data[i,:] = start_row
 
     # Generate errors
-    epsilon = generate_errors(data, dist, error_var, degree_f, wald_mean)
+    epsilon = generate_errors(data, dist, error_var, degree_f)
 
     # Get coefficients
     a_0 = a[0]
@@ -56,7 +56,7 @@ def generate_ar(steps: int, paths: int, a=np.ndarray, start=0, dist='normal', er
 
 
 
-def iterate_simulations(steps_list: list, a: np.ndarray, paths=1, error_var=1) -> dict:
+def iterate_simulations(steps_list: list, paths: int,  a: np.ndarray, dist='normal', error_var=1, degree_f=None) -> dict:
 
     '''
     
@@ -65,13 +65,34 @@ def iterate_simulations(steps_list: list, a: np.ndarray, paths=1, error_var=1) -
 
     '''
 
-    simulations = {steps: None for steps in steps_list}
+    simulations = {}
 
     for steps in steps_list:
-        sim = generate_ar(steps=steps, paths=paths, a=a, dist='normal', error_var=error_var, degree_f=None, disable_progress=True)
+        sim = generate_ar(steps=steps, paths=paths, a=a, dist=dist, error_var=error_var, degree_f=degree_f, disable_progress=True)
         simulations[steps] = sim
     
     return simulations
+
+
+
+def iterate_fit_ols(simulations: dict, p: int, return_df=True) -> df | dict:
+
+    '''
+    
+    By default returns a pandas dataframe with the average coefficients fitted for every # steps (averaged over paths)
+    If return_df=False, it returns a dictionary containing the coefficients found for every # of steps, not averaged per path.
+    
+    '''
+
+    coef = {}
+
+    for steps in simulations:
+        coef[steps] = fit_ar_ols(data=simulations[steps], p=p)
+
+    if return_df:
+        return df({k: np.mean(v, axis=1).ravel() for k, v in coef.items()})
+    else:
+        return coef
 
 
 
@@ -142,6 +163,13 @@ def fit_ar_ols(data: np.ndarray, p: int) -> np.ndarray:
 
 
 def fit_ar_ML(y_t: np.ndarray, p: int, dist='normal', method='L-BFGS-B'):
+
+    '''
+    
+    Returns a minimize.res object relative to the optimization (minimum) of the negative log-likelihood
+    corresponding to 'dist' parameter.
+    
+    '''
 
     init_a0 = np.mean(y_t)
     init_coeff = np.zeros(shape=(p))
