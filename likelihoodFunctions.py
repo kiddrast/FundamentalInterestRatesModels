@@ -72,7 +72,7 @@ def multi_col_neg_loglik_normal_ar(a: np.ndarray, y_t: np.ndarray) -> float:
 
     _, col = y_t.shape
 
-    liks = np.empty(shape=col)
+    liks = np.zeros(shape=col)
 
     for i in range(0, col):
         liks[0] = neg_loglik_normal_ar(a, y_t[:,i])

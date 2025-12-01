@@ -123,16 +123,9 @@ def compute_moments(data: np.array) -> df:
 
 
 
-def qq_plot(data: np.array, dist='normal', ncols=3) -> None:
-
-    """
-
-    Plots Q-Q plot for each Path
-
-    """
+def qq_plot(data: np.array, dist='normal', ncols=3, df=8) -> None:
 
     _, paths = data.shape
-
     nrows = int(np.ceil(paths / ncols))
     fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(3*ncols, 3*nrows))
     axes = axes.flatten()
@@ -140,6 +133,9 @@ def qq_plot(data: np.array, dist='normal', ncols=3) -> None:
     for i in range(paths):
         if dist == 'normal':
             stats.probplot(data[:, i], dist="norm", plot=axes[i])
+        elif dist == 't':
+            stats.probplot(data[:, i], dist="t", sparams=(df,), plot=axes[i])
+
         axes[i].set_title(f"Q-Q Plot Path {i}")
         axes[i].grid(True)
 
