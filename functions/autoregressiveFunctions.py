@@ -6,7 +6,7 @@ from tqdm import trange
 import scipy.stats as stats
 from IPython.display import display
 
-from likelihoodFunctions import multi_col_neg_loglik_normal_ar, multi_col_neg_loglik_t_ar
+from functions.likelihoodFunctions import multi_col_neg_loglik_normal_ar, multi_col_neg_loglik_t_ar
 from scipy.optimize import minimize 
 
 
@@ -122,7 +122,7 @@ def fit_ar_ols(data: np.ndarray, p: int) -> np.ndarray:
 
 
 
-def fit_ar_ML(y_t: np.ndarray, p: int, dist='normal', method='L-BFGS-B', print_res=True):
+def fit_ar_ML(y_t: np.ndarray, p: int, dist='normal', method='L-BFGS-B', return_res=False):
 
     '''
     
@@ -153,9 +153,33 @@ def fit_ar_ML(y_t: np.ndarray, p: int, dist='normal', method='L-BFGS-B', print_r
         # sigma_2_hat = res.x[-2]
         # nu_hat = res.x[-1]
 
-    if print_res: print(res)
-    
-    return res.x
+    if return_res: 
+        return res
+    else:
+        return res.x
+
+
+
+def aic(negloglik, k):
+
+    """
+
+    Compute AIC from negative log-likelihood. k: # of estimated params
+
+    """
+
+    return 2*k + 2*negloglik
+
+
+
+def bic(negloglik, k, T):
+
+    """
+    Compute BIC from negative log-likelihood. k: # of estimated params
+
+    """
+
+    return k * np.log(T) + 2*negloglik
 
 
 
@@ -211,7 +235,7 @@ def iterate_fit_ar_ML(simulations: dict, p: int, dist: str, method='L-BFGS-B', r
     coef = {}
 
     for steps in simulations:
-        coef[steps] = fit_ar_ML(y_t=simulations[steps], p=p, dist=dist, method=method, print_res=False)
+        coef[steps] = fit_ar_ML(y_t=simulations[steps], p=p, dist=dist, method=method, return_res=False)
 
     if return_df:
         return df(coef)

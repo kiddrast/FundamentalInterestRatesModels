@@ -244,7 +244,7 @@ def check_autocovariance_stationarity(y, max_lag=10, plot=True, window=25, min_p
 ### For testing and debugging
 if __name__ == "__main__":
 
-    import autoregressive_oop as ar
+    import ar_helpers.autoregressive_oop as ar
 
     model = ar.AutoRegressive(steps=1_000, paths=6, a=np.array([0.2, 0.3, 0.2]), start=0)
     data = model.generate()
