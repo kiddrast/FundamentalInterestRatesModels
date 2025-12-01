@@ -4,6 +4,7 @@ from pandas import DataFrame as df
 import matplotlib.pyplot as plt
 import scipy.stats as stats
 
+
 def jb_test(data: np.array) -> df:
 
     '''
@@ -146,7 +147,88 @@ def qq_plot(data: np.array, dist='normal', ncols=3, df=8) -> None:
 
 
 
+def rolling_mean(arr: np.ndarray, window: int) -> np.ndarray:
 
+    '''
+    
+    Returns the rolling mean of the given array computed on window timespan
+    
+    '''
+
+    if window <= 1:
+        return np.full_like(arr, arr, dtype=float)
+    s = pd.Series(arr)
+    rm = s.rolling(window=window, center=True, min_periods=1).mean().to_numpy()
+    return rm
+
+
+
+def check_autocovariance_stationarity(y, max_lag=10, plot=True, window=25, min_points_for_regression=10):
+
+    '''
+
+    Checks empirially if aucovariance depends on lag k only.
+
+    - Computes rolling mean of c_t^(k) 
+    - Regresses c_t^(k) vs time
+
+    '''
+
+    y = y - np.mean(y) # De-mean
+    T = len(y)
+    results = {}
+
+    for k in range(1, max_lag+1):
+        products = (y[k:] * y[:-k])   # c_t^(k) for t = k..T-1
+        mean_prod = products.mean()
+        std_prod  = products.std(ddof=1)
+        n_obs = products.size
+
+        # rolling mean (aligned to the same index as `products`)
+        rm = rolling_mean(products, window)
+
+        # regression products ~ t
+        regression = {'slope': np.nan, 'intercept': np.nan, 'pvalue': np.nan, 'rvalue': np.nan, 'r_squared': np.nan}
+        if n_obs >= min_points_for_regression:
+            t_idx = np.arange(k, T)  # time indices aligned with products
+            # perform linear regression
+            slope, intercept, r_value, p_value, std_err = stats.linregress(t_idx, products)
+            regression.update({
+                'slope': float(slope),
+                'intercept': float(intercept),
+                'pvalue': float(p_value),
+                'rvalue': float(r_value),
+                'r_squared': float(r_value**2),
+                'std_err': float(std_err),
+                'n_obs': int(n_obs)
+            })
+
+        results[k] = {
+            'products': products,
+            'index': np.arange(k, T),   # corresponding t values
+            'mean': float(mean_prod),
+            'std': float(std_prod),
+            'rolling_mean': rm,
+            'regression': regression
+        }
+
+        if plot:
+            fig, ax = plt.subplots(figsize=(10,3))
+            ax.plot(results[k]['index'], products, marker='.', linestyle='-', alpha=0.45, label='c_t^(k) (products)')
+            ax.plot(results[k]['index'], rm, linestyle='-', linewidth=2, label=f'rolling mean (w={window})')
+            # regression line (if computed)
+            if not np.isnan(regression['slope']):
+                t_idx = results[k]['index']
+                reg_line = regression['intercept'] + regression['slope'] * t_idx
+                ax.plot(t_idx, reg_line, linestyle='--', linewidth=1.5,
+                        label=f"reg line: slope={regression['slope']:.3e}, p={regression['pvalue']:.3f}, R²={regression['r_squared']:.3f}")
+            ax.hlines(mean_prod, results[k]['index'][0], results[k]['index'][-1], colors='r', linestyles='--', label=f'mean={mean_prod:.4f}')
+            ax.set_title(f'Products c_t^(k) for k={k} (mean={mean_prod:.4f}, std={std_prod:.4f})')
+            ax.set_xlabel('t'); ax.set_ylabel('c_t^(k)')
+            ax.legend(loc='best'); ax.grid(True)
+            plt.show()
+
+    return #results
 
 
 
