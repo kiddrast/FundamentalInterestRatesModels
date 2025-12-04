@@ -1,6 +1,8 @@
 import numpy as np
 from tqdm import trange
 import matplotlib.pyplot as plt
+from scipy.optimize import minimize
+from likelihoodFunctions import neg_loglik_var
 
 
 
@@ -126,7 +128,7 @@ def generate_var(T: int, k: int, p: int, sigma: np.ndarray, A: np.ndarray, A_0= 
 
 
 
-def fit_var_ols(data, p) -> np.ndarray:
+def fit_var_OLS(data, p) -> np.ndarray:
 
     T, k = data.shape
 
@@ -138,10 +140,42 @@ def fit_var_ols(data, p) -> np.ndarray:
 
     A_hat = np.linalg.inv(X.T @ X) @ (X.T @ Y)
 
-    c = A_hat[1,:]
+    A0_hat = A_hat[1,:]
     A_hat = A_hat[1:].reshape(p,k,k).transpose(0, 2, 1)
 
-    return c , A_hat
+    return A0_hat , A_hat # shapes: (k,) , (p,k,k)
+
+
+
+def fit_var_ML(Y, p):
+
+    T, k = Y.shape
+
+    # initialize
+    A0 = np.zeros((1 + k*p, k))
+    Sigma0 = np.cov(Y.T)
+    L0 = np.linalg.cholesky(Sigma0)
+    tril_idx = np.tril_indices(k) # Gives the indeces of lower triangular part
+    Sigma_params0 = L0[tril_idx]
+    
+    x0 = np.concatenate([A0.ravel(), Sigma_params0])
+
+    res = minimize(neg_loglik_var, x0, args=(Y, p), method='L-BFGS-B')
+    
+    # build A and sigma
+    n_coef = (1 + k*p) * k
+    A_hat = res.x[:n_coef].reshape(1 + k*p, k)
+    Sigma_params_hat = res.x[n_coef:]
+    L = np.zeros((k, k))
+    L[tril_idx] = Sigma_params_hat
+    Sigma_hat = L @ L.T
+
+    A0_hat = A_hat[1,:]
+    A_hat = A_hat[1:].reshape(p,k,k).transpose(0, 2, 1)
+    
+    return A0_hat, A_hat, Sigma_hat
+
+
 
 
 
@@ -149,12 +183,16 @@ def fit_var_ols(data, p) -> np.ndarray:
 if __name__ == '__main__':
 
     k = 3
-    T = 1_000_000
+    T = 10_000
     p=3
 
     A = generate_A_stationary(k, p, plot_eigs=True, diag_dominant=False, offdiag_scale=0.5)
     sigma = generate_sigma(k, bounds=(0.1, 1.0))
     data = generate_var(T, k, p, sigma, A)
-    a_hat = fit_var_ols(data, p)
+
+    A0_hat_OLS, A_hat_OLS = fit_var_OLS(data, p)
+    A0_hat_ML, A_hat_ML, Sigma_hat = fit_var_ML(data, p)
+
+    b = 0
 
     

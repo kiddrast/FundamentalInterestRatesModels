@@ -176,10 +176,77 @@ def neg_loglik_wald_ar(a: np.ndarray, y_t: np.ndarray) -> float:
 
 
 
-# TESTING AND DEBUGGING
-if __name__ == '__main__':
-    from ar_helpers.likelihoodFunctions import generate_ar as gar
-    y_t = gar(steps=100, paths=1, a=np.array([0.2, 0.9, 0.1]), start=55, dist='normal')
 
-    mu_t = conditional_mean(y_t=y_t, a=np.array([0.2, 0.9, 0.1]))
-    print(mu_t)
+
+
+
+
+#####################################################################
+################################ VAR ################################
+#####################################################################
+
+
+
+
+def conditional_mean_var(Y, A, p):
+
+    '''
+
+    Y: T x k
+    A: (1 + k*p) x k
+    Returns mu_t: T x k
+
+    '''
+
+    T, k = Y.shape
+    mu_t = np.zeros_like(Y)
+    mu_t[:p, :] = Y[:p, :]
+    
+    for t in range(p, T):
+        x_t = np.hstack([1] + [Y[t - lag - 1, :] for lag in range(p)])
+        mu_t[t, :] = x_t @ A
+    return mu_t
+
+
+
+def loglik_normal_var(Y, mu, Sigma):
+
+    '''
+
+    Y, mu: T x k
+    Sigma: k x k (covariance)
+
+    '''
+
+    T, k = Y.shape
+    diff = Y - mu
+    sign, logdet = np.linalg.slogdet(Sigma)
+    inv_Sigma = np.linalg.inv(Sigma)
+    term = np.einsum('ti,ij,tj->', diff, inv_Sigma, diff)  # sum_t (y_t-mu_t)' Sigma^-1 (y_t-mu_t)
+
+    return -0.5 * T * (k * np.log(2 * np.pi) + logdet) - 0.5 * term
+
+
+
+def neg_loglik_var(params, Y, p):
+
+    '''
+
+    params: first (1 + k*p)*k for coefficients, then k*(k+1)/2 for Sigma
+
+    '''
+
+    T, k = Y.shape
+    n_coef = (1 + k*p) * k
+    A = params[:n_coef].reshape(1 + k*p, k)
+    
+    # let's build sigma from coefficients using lower-triangular parametrization
+    Sigma_params = params[n_coef:]
+    L = np.zeros((k, k))
+    tril_idx = np.tril_indices(k)
+    L[tril_idx] = Sigma_params
+    Sigma = L @ L.T  # garantees PD
+    
+    mu_t = conditional_mean_var(Y, A, p)
+    
+    return - loglik_normal_var(Y[p:, :], mu_t[p:, :], Sigma)
