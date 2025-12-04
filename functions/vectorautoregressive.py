@@ -2,7 +2,7 @@ import numpy as np
 from tqdm import trange
 import matplotlib.pyplot as plt
 from scipy.optimize import minimize
-from likelihoodFunctions import neg_loglik_var
+from functions.likelihoodFunctions import neg_loglik_var
 
 
 
@@ -102,13 +102,13 @@ def generate_A_stationary(k, p, plot_eigs=True, diag_dominant=False, offdiag_sca
         plt.axhline(0, color='black')
         plt.axvline(0, color='black')
         plt.gca().set_aspect('equal')
-        plt.title("A matrix eigenvalues")
+        plt.title("Companion matrix eigenvalues")
         plt.show()
     return A
 
 
 
-def generate_var(T: int, k: int, p: int, sigma: np.ndarray, A: np.ndarray, A_0= None) -> np.ndarray:
+def generate_var(T: int, k: int, p: int, sigma: np.ndarray, A: np.ndarray, A_0= None, disable_progress=False) -> np.ndarray:
 
     if A_0 is None:
         A_0 = np.zeros(shape=(k,))
@@ -117,7 +117,7 @@ def generate_var(T: int, k: int, p: int, sigma: np.ndarray, A: np.ndarray, A_0= 
     data = np.zeros(shape=(T,k))
     A = np.hstack(A)
 
-    for i in trange(p, T):
+    for i in trange(p, T, disable=disable_progress):
 
         window = data[i-p:i,:][::-1]
         vec = window.ravel(order='C') # Flatten for rows 
@@ -125,6 +125,18 @@ def generate_var(T: int, k: int, p: int, sigma: np.ndarray, A: np.ndarray, A_0= 
         data[i] = A_0 + (A @ vec).T + epsilon[i]
 
     return data
+
+
+
+def iterate_simulations(steps_list: list, k: int, p: int,  A: np.ndarray, sigma: np.ndarray, A_0=None) -> dict:
+
+    simulations = {}
+
+    for steps in steps_list:
+        sim = generate_var(T=steps, k=k, p=p, sigma=sigma, A=A, A_0=A_0, disable_progress=True)
+        simulations[steps] = sim
+    
+    return simulations
 
 
 
@@ -183,7 +195,7 @@ def fit_var_ML(Y, p):
 if __name__ == '__main__':
 
     k = 3
-    T = 10_000
+    T = 100
     p=3
 
     A = generate_A_stationary(k, p, plot_eigs=True, diag_dominant=False, offdiag_scale=0.5)
